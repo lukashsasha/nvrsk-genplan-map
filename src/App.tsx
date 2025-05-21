@@ -1,35 +1,78 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useCallback, useState } from 'react';
+import { useResizeObserver } from '@wojtekmaj/react-hooks';
+import { pdfjs, Document, Page } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-function App() {
-  const [count, setCount] = useState(0)
+import './App.css';
+
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
+const options = {
+  cMapUrl: '/cmaps/',
+  standardFontDataUrl: '/standard_fonts/',
+};
+
+const resizeObserverOptions = {};
+
+const maxWidth = 800;
+
+type PDFFile = string | File | null;
+
+export default function App() {
+  const [file, setFile] = useState<PDFFile>('/map.pdf');
+  const [numPages, setNumPages] = useState<number>();
+  const [containerRef, setContainerRef] = useState<HTMLElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>();
+  const [pageIsRendering, setPageIsRendering] = useState(true);
+
+  const onResize = useCallback<ResizeObserverCallback>((entries) => {
+    const [entry] = entries;
+
+    if (entry) {
+      setContainerWidth(entry.contentRect.width);
+    }
+  }, []);
+
+  useResizeObserver(containerRef, resizeObserverOptions, onResize);
+
+
+
+  function onDocumentLoadSuccess({ numPages: nextNumPages }: PDFDocumentProxy): void {
+    setNumPages(nextNumPages);
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="Example">
+      <header>
+        <h1>react-pdf sample page</h1>
+      </header>
+      <div className="Example__container">
+        {/* <div className="Example__container__load">
+          <label htmlFor="file">Load from file:</label>{' '}
+          <input onChange={onFileChange} type="file" />
+        </div> */}
+        <div className="Example__container__document" ref={setContainerRef}>
+          <Document file={file} onLoadSuccess={onDocumentLoadSuccess} options={options}>
+            {Array.from(new Array(numPages), (_el, index) => (
+              <div style={{ position: "relative" }}>
+                {pageIsRendering && <div className="page-loader">Загрузка страницы...</div>}
+                <Page
+                  key={`page_${index + 1}`}
+                  pageNumber={index + 1}
+                  width={containerWidth ? Math.min(containerWidth, maxWidth) : maxWidth}
+                  onRenderSuccess={() => setPageIsRendering(false)}
+                />
+              </div>
+            ))}
+          </Document>
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
-
-export default App
